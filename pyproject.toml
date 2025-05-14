@@ -20,6 +20,7 @@ start = "ursula.test:test"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"
+poetry-plugin-shell = ">=1.0.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
