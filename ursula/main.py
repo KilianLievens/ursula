@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageTk
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
-# Abstract Display Interface
+# Display Interface
 class DisplayInterface():
     @abstractmethod
     def init(self):
@@ -227,6 +227,13 @@ class Typewriter:
             self.update_display()
             return
 
+        # TODO KILIAN: technically you could add endless space at the end of a line without noticing.
+        if key == 'space':
+            # Add space
+            self.lines[-1] += ' '
+            self.update_display()
+            return
+
         if len(key) > 1:
             # Ignore other special keys (like Ctrl, Alt, etc.)
             return
@@ -234,14 +241,17 @@ class Typewriter:
         # TODO KILIAN: parameterize the padding
         # 20 pixels: padding for the left side + right side
         if self.get_text_width(self.lines[-1]) >= self.width - 20:
+            # TODO KILIAN: move to function
             # Move to a new line if the current line exceeds the width
-            self.lines.append("")
-
-        if key == 'space':
-            # Add space
-            self.lines[-1] += ' '
-            self.update_display()
-            return
+            parts = self.lines[-1].rsplit(" ")
+            if len(parts) > 1:
+                # Move the last part to a new line
+                # Technically, when backspacing we could reverse this operation if relevant.
+                # Lets not for now.
+                self.lines[-1] = " ".join(parts[:-1])
+                self.lines.append(parts[-1])
+            else:
+                self.lines.append("")
 
         if key.isalnum():
             # Check for shift key to handle uppercase
