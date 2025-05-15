@@ -181,6 +181,15 @@ class Typewriter:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         self.font = ImageFont.truetype(os.path.join(dir_path, "lib", "font.ttc"), self.font_size)
 
+        # Try to load a fancy font for splash screen, fall back to regular font if not available
+        try:
+            self.splash_font = ImageFont.truetype(os.path.join(dir_path, "lib", "font.ttc"), 96)
+            # Alternatively, you could try to use a different font file if available:
+            # self.splash_font = ImageFont.truetype("arial.ttf", 96)
+        except IOError:
+            logging.warning("Fancy font not found. Using regular font for splash screen.")
+            self.splash_font = self.font
+
         # Create initial image
         self.image = Image.new("1", (self.width, self.height), 255)
         self.draw = ImageDraw.Draw(self.image)
@@ -191,6 +200,64 @@ class Typewriter:
         # Initialize the display
         self.display.init()
         self.display.clear()
+
+        # Show splash screen
+        self.show_splash_screen()
+
+    def show_splash_screen(self):
+        """Display a splash screen with 'Ursula' text"""
+        logging.debug("Showing splash screen")
+
+        # Clear the image and create a new blank canvas
+        splash_image = Image.new("1", (self.width, self.height), 255)  # White background
+        splash_draw = ImageDraw.Draw(splash_image)
+
+        # Text to display
+        text = "Ursula"
+
+        # Calculate text dimensions to center it
+        text_width = splash_draw.textlength(text, font=self.splash_font)
+        text_height = self.splash_font.size
+
+        # Draw text centered on the screen
+        x = (self.width - text_width) // 2
+        y = (self.height - text_height) // 2
+
+        # Add decorative elements (simple lines)
+        line_length = text_width + 80
+        line_y_above = y - 40
+        line_y_below = y + text_height + 20
+
+        # Draw horizontal lines above and below the text
+        splash_draw.line([(self.width - line_length) // 2, line_y_above,
+                         (self.width + line_length) // 2, line_y_above], fill=0, width=3)
+        splash_draw.line([(self.width - line_length) // 2, line_y_below,
+                         (self.width + line_length) // 2, line_y_below], fill=0, width=3)
+
+        # Draw the text
+        splash_draw.text((x, y), text, font=self.splash_font, fill=0)  # Black text
+
+        # Add a subtitle
+        subtitle = "Typewriter"
+        sub_subtitle = "For Hans, by Kels with love."
+        subtitle_font = ImageFont.truetype(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                          "lib", "font.ttc"), 24)
+        sub_subtitle_font = ImageFont.truetype(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                          "lib", "font.ttc"), 18)
+        subtitle_width = splash_draw.textlength(subtitle, font=subtitle_font)
+        sub_subtitle_width = splash_draw.textlength(sub_subtitle, font=sub_subtitle_font)
+        subtitle_x = (self.width - subtitle_width) // 2
+        sub_subtitle_x = (self.width - sub_subtitle_width) // 2
+        subtitle_offset = 40
+        subtitle_y = y + text_height + subtitle_offset
+        splash_draw.text((subtitle_x, subtitle_y), subtitle, font=subtitle_font, fill=0)
+        splash_draw.text((sub_subtitle_x, subtitle_y + subtitle_offset), sub_subtitle, font=sub_subtitle_font, fill=0)
+
+        # Display the splash screen
+        self.display.display(splash_image)
+
+        # Wait for a moment before continuing
+        time.sleep(4)
 
     def setup_keyboard_listener(self):
         """Set up global keyboard event listener"""
@@ -243,13 +310,13 @@ class Typewriter:
         if self.get_text_width(self.lines[-1]) >= self.width - 20:
             # TODO KILIAN: move to function
             # Move to a new line if the current line exceeds the width
-            parts = self.lines[-1].rsplit(" ")
+            parts = self.lines[-1].rsplit(" ", 1)
             if len(parts) > 1:
                 # Move the last part to a new line
                 # Technically, when backspacing we could reverse this operation if relevant.
                 # Lets not for now.
-                self.lines[-1] = " ".join(parts[:-1])
-                self.lines.append(parts[-1])
+                self.lines[-1] = parts[0]
+                self.lines.append(parts[1])
             else:
                 self.lines.append("")
 
