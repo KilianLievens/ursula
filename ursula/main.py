@@ -87,7 +87,7 @@ class EInkDisplay(DisplayInterface):
 
 # Tkinter Simulator Implementation
 class TkinterDisplay(DisplayInterface):
-    def __init__(self, width=800, height=480, scale_factor=3):
+    def __init__(self, width=800, height=480, scale_factor=1):
         self.logical_width = width
         self.logical_height = height
         self.scale_factor = scale_factor
@@ -177,6 +177,9 @@ class Typewriter:
         self.font_size = 32
         self.line_height = self.font_size + 8
 
+        # Default save file name
+        self.save_file = "typewriter_content.txt"
+
         # Load font
         dir_path = os.path.dirname(os.path.realpath(__file__))
         self.font = ImageFont.truetype(os.path.join(dir_path, "lib", "font.ttc"), self.font_size)
@@ -201,8 +204,43 @@ class Typewriter:
         self.display.init()
         self.display.clear()
 
+        # Load existing content before showing splash screen
+        self.load_content()
+
         # Show splash screen
         self.show_splash_screen()
+
+    def save_content(self):
+        """Save current lines to a file"""
+        try:
+            with open(self.save_file, 'w', encoding='utf-8') as f:
+                # Join lines with newlines and save
+                content = '\n'.join(self.lines)
+                f.write(content)
+            logging.info(f"Content saved to {self.save_file}")
+        except Exception as e:
+            logging.error(f"Failed to save content: {e}")
+
+    def load_content(self):
+        """Load content from file if it exists"""
+        try:
+            if os.path.exists(self.save_file):
+                with open(self.save_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    if content:
+                        # Split content into lines
+                        self.lines = content.split('\n')
+                        # Ensure we have at least one line
+                        if not self.lines:
+                            self.lines = [""]
+                        logging.info(f"Content loaded from {self.save_file}")
+                    else:
+                        self.lines = [""]
+            else:
+                logging.info(f"No existing save file found at {self.save_file}")
+        except Exception as e:
+            logging.error(f"Failed to load content: {e}")
+            self.lines = [""]
 
     def show_splash_screen(self):
         """Display a splash screen with 'Ursula' text"""
@@ -257,7 +295,7 @@ class Typewriter:
         self.display.display(splash_image)
 
         # Wait for a moment before continuing
-        time.sleep(4)
+        time.sleep(3)
 
     def setup_keyboard_listener(self):
         """Set up global keyboard event listener"""
@@ -303,6 +341,11 @@ class Typewriter:
 
         if len(key) > 1:
             # Ignore other special keys (like Ctrl, Alt, etc.)
+            return
+
+        # Handle Ctrl+S for saving
+        if key == 's' and keyboard.is_pressed('ctrl'):
+            self.save_content()
             return
 
         # TODO KILIAN: parameterize the padding
@@ -402,6 +445,8 @@ class Typewriter:
 
     def stop(self):
         """Stop the typewriter application"""
+        # Auto-save when stopping
+        self.save_content()
         self.running = False
         keyboard.unhook_all()
         self.display.close()
