@@ -9,8 +9,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageTk
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
+
 # Display Interface
-class DisplayInterface():
+class DisplayInterface:
     @abstractmethod
     def init(self):
         """Initialize the display"""
@@ -27,7 +28,7 @@ class DisplayInterface():
         pass
 
     @abstractmethod
-    def get_dimensions(self):
+    def get_dimensions(self) -> tuple[int, int]:
         """Return width and height of the display"""
         pass
 
@@ -41,25 +42,23 @@ class DisplayInterface():
         """Clean up resources"""
         pass
 
+
 # E-Ink Display Implementation
 class EInkDisplay(DisplayInterface):
     def __init__(self):
         try:
-            from ursula.lib.epd import EPD, epdconfig
+            from ursula.lib.epd import EPD
+
             self.epd = EPD()
-            self.epdconfig = epdconfig
             self.width = self.epd.width
             self.height = self.epd.height
+            self.partial_refresh_counter = 0
         except ImportError:
-            logging.error("E-Ink display module not found. Make sure 'ursula.lib.epd' is available.")
+            logging.error("E-Ink display module not found.")
             raise
 
     def init(self):
         logging.debug("Initializing E-Ink display")
-        self.epd.init()
-
-    def init_partial(self):
-        """Initialize for partial updates"""
         self.epd.init_part()
 
     def clear(self):
@@ -68,11 +67,16 @@ class EInkDisplay(DisplayInterface):
 
     def display(self, image):
         logging.debug("Displaying image on E-Ink display")
-        self.epd.display(self.epd.getbuffer(image))
+        buffer = self.epd.getbuffer(image)
+        if self.partial_refresh_counter > 30:
+            # Full refresh
+            self.epd.display(buffer)
+            self.partial_refresh_counter = 0
+            return
 
-    def display_partial(self, image, x, y, w, h):
-        """Partial update of the display"""
-        self.epd.display_Partial(self.epd.getbuffer(image), x, y, w, h)
+        # TODO KILIAN: try again to do partial updates over only part of the screen
+        self.epd.display_Partial(buffer, 0, 0, self.width, self.height)
+        self.partial_refresh_counter += 1
 
     def get_dimensions(self):
         return (self.width, self.height)
@@ -82,12 +86,12 @@ class EInkDisplay(DisplayInterface):
         self.epd.sleep()
 
     def close(self):
-        logging.debug("Closing E-Ink display")
-        self.epdconfig.module_exit(cleanup=True)
+        self.sleep()
+
 
 # Tkinter Simulator Implementation
 class TkinterDisplay(DisplayInterface):
-    def __init__(self, width=800, height=480, scale_factor=1):
+    def __init__(self, width=800, height=480, scale_factor=3):
         self.logical_width = width
         self.logical_height = height
         self.scale_factor = scale_factor
@@ -109,8 +113,13 @@ class TkinterDisplay(DisplayInterface):
         self.root.resizable(False, False)
         self.root.configure(bg="#f0f0f0")
 
-        self.canvas = tk.Canvas(self.root, width=self.physical_width, height=self.physical_height,
-                               bg="#f0f0f0", highlightthickness=0)
+        self.canvas = tk.Canvas(
+            self.root,
+            width=self.physical_width,
+            height=self.physical_height,
+            bg="#f0f0f0",
+            highlightthickness=0,
+        )
         self.canvas.pack()
 
         # Handle window close event
@@ -138,7 +147,10 @@ class TkinterDisplay(DisplayInterface):
 
         # Create a new image on the canvas
         self.image_on_canvas = self.canvas.create_image(
-            self.physical_width // 2, self.physical_height // 2, anchor=tk.CENTER, image=self.tk_image
+            self.physical_width // 2,
+            self.physical_height // 2,
+            anchor=tk.CENTER,
+            image=self.tk_image,
         )
 
         # Update the display
@@ -163,34 +175,44 @@ class TkinterDisplay(DisplayInterface):
         if self.root:
             self.root.update()
 
+    # TODO KILIAN: a run in the interface?
     def mainloop(self):
         """Start the Tkinter main loop"""
         if self.root:
             self.root.mainloop()
 
+
 # Typewriter Application
 class Typewriter:
-    def __init__(self, display):
+    def __init__(self, display, simulation=True):
         self.display = display
         self.width, self.height = display.get_dimensions()
         self.lines = [""]
         self.font_size = 32
         self.line_height = self.font_size + 8
 
+        self.simulation = simulation
+
         # Default save file name
         self.save_file = "typewriter_content.txt"
 
         # Load font
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        self.font = ImageFont.truetype(os.path.join(dir_path, "lib", "font.ttc"), self.font_size)
+        self.font = ImageFont.truetype(
+            os.path.join(dir_path, "lib", "font.ttc"), self.font_size
+        )
 
         # Try to load a fancy font for splash screen, fall back to regular font if not available
         try:
-            self.splash_font = ImageFont.truetype(os.path.join(dir_path, "lib", "font.ttc"), 96)
+            self.splash_font = ImageFont.truetype(
+                os.path.join(dir_path, "lib", "font.ttc"), 96
+            )
             # Alternatively, you could try to use a different font file if available:
             # self.splash_font = ImageFont.truetype("arial.ttf", 96)
         except IOError:
-            logging.warning("Fancy font not found. Using regular font for splash screen.")
+            logging.warning(
+                "Fancy font not found. Using regular font for splash screen."
+            )
             self.splash_font = self.font
 
         # Create initial image
@@ -213,9 +235,8 @@ class Typewriter:
     def save_content(self):
         """Save current lines to a file"""
         try:
-            with open(self.save_file, 'w', encoding='utf-8') as f:
-                # Join lines with newlines and save
-                content = '\n'.join(self.lines)
+            with open(self.save_file, "w", encoding="utf-8") as f:
+                content = "\n".join(self.lines)
                 f.write(content)
             logging.info(f"Content saved to {self.save_file}")
         except Exception as e:
@@ -225,11 +246,10 @@ class Typewriter:
         """Load content from file if it exists"""
         try:
             if os.path.exists(self.save_file):
-                with open(self.save_file, 'r', encoding='utf-8') as f:
+                with open(self.save_file, "r", encoding="utf-8") as f:
                     content = f.read()
                     if content:
-                        # Split content into lines
-                        self.lines = content.split('\n')
+                        self.lines = content.split("\n")
                         # Ensure we have at least one line
                         if not self.lines:
                             self.lines = [""]
@@ -247,7 +267,9 @@ class Typewriter:
         logging.debug("Showing splash screen")
 
         # Clear the image and create a new blank canvas
-        splash_image = Image.new("1", (self.width, self.height), 255)  # White background
+        splash_image = Image.new(
+            "1", (self.width, self.height), 255
+        )  # White background
         splash_draw = ImageDraw.Draw(splash_image)
 
         # Text to display
@@ -267,10 +289,26 @@ class Typewriter:
         line_y_below = y + text_height + 20
 
         # Draw horizontal lines above and below the text
-        splash_draw.line([(self.width - line_length) // 2, line_y_above,
-                         (self.width + line_length) // 2, line_y_above], fill=0, width=3)
-        splash_draw.line([(self.width - line_length) // 2, line_y_below,
-                         (self.width + line_length) // 2, line_y_below], fill=0, width=3)
+        splash_draw.line(
+            [
+                (self.width - line_length) // 2,
+                line_y_above,
+                (self.width + line_length) // 2,
+                line_y_above,
+            ],
+            fill=0,
+            width=3,
+        )
+        splash_draw.line(
+            [
+                (self.width - line_length) // 2,
+                line_y_below,
+                (self.width + line_length) // 2,
+                line_y_below,
+            ],
+            fill=0,
+            width=3,
+        )
 
         # Draw the text
         splash_draw.text((x, y), text, font=self.splash_font, fill=0)  # Black text
@@ -278,18 +316,33 @@ class Typewriter:
         # Add a subtitle
         subtitle = "Typewriter"
         sub_subtitle = "For Hans, by Kels with love."
-        subtitle_font = ImageFont.truetype(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                          "lib", "font.ttc"), 24)
-        sub_subtitle_font = ImageFont.truetype(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                          "lib", "font.ttc"), 18)
+        subtitle_font = ImageFont.truetype(
+            os.path.join(
+                os.path.dirname(os.path.realpath(__file__)), "lib", "font.ttc"
+            ),
+            24,
+        )
+        sub_subtitle_font = ImageFont.truetype(
+            os.path.join(
+                os.path.dirname(os.path.realpath(__file__)), "lib", "font.ttc"
+            ),
+            18,
+        )
         subtitle_width = splash_draw.textlength(subtitle, font=subtitle_font)
-        sub_subtitle_width = splash_draw.textlength(sub_subtitle, font=sub_subtitle_font)
+        sub_subtitle_width = splash_draw.textlength(
+            sub_subtitle, font=sub_subtitle_font
+        )
         subtitle_x = (self.width - subtitle_width) // 2
         sub_subtitle_x = (self.width - sub_subtitle_width) // 2
         subtitle_offset = 40
         subtitle_y = y + text_height + subtitle_offset
         splash_draw.text((subtitle_x, subtitle_y), subtitle, font=subtitle_font, fill=0)
-        splash_draw.text((sub_subtitle_x, subtitle_y + subtitle_offset), sub_subtitle, font=sub_subtitle_font, fill=0)
+        splash_draw.text(
+            (sub_subtitle_x, subtitle_y + subtitle_offset),
+            sub_subtitle,
+            font=sub_subtitle_font,
+            fill=0,
+        )
 
         # Display the splash screen
         self.display.display(splash_image)
@@ -309,14 +362,24 @@ class Typewriter:
         # Get the key name
         key = event.name
 
+        # Handle Ctrl+S for saving
+        if key == "s" and keyboard.is_pressed("ctrl"):
+            self.save_content()
+            return
+
+        # Handle Ctrl+P for power off
+        if key == "p" and keyboard.is_pressed("ctrl"):
+            self.power_off()
+            return
+
         # Process different keys
-        if key == 'enter':
+        if key == "enter":
             # Move to a new line when Enter/Return is pressed
             self.lines.append("")
             self.update_display()
             return
 
-        if key == 'backspace':
+        if key == "backspace":
             # Nothing to remove
             if len(self.lines) == 1 and len(self.lines[-1]) == 0:
                 return
@@ -333,19 +396,14 @@ class Typewriter:
             return
 
         # TODO KILIAN: technically you could add endless space at the end of a line without noticing.
-        if key == 'space':
+        if key == "space":
             # Add space
-            self.lines[-1] += ' '
+            self.lines[-1] += " "
             self.update_display()
             return
 
         if len(key) > 1:
             # Ignore other special keys (like Ctrl, Alt, etc.)
-            return
-
-        # Handle Ctrl+S for saving
-        if key == 's' and keyboard.is_pressed('ctrl'):
-            self.save_content()
             return
 
         # TODO KILIAN: parameterize the padding
@@ -365,7 +423,7 @@ class Typewriter:
 
         if key.isalnum():
             # Check for shift key to handle uppercase
-            if keyboard.is_pressed('shift'):
+            if keyboard.is_pressed("shift"):
                 key = key.upper()
 
             self.lines[-1] += key
@@ -374,21 +432,21 @@ class Typewriter:
 
         # TODO KILIAN: move
         shift_map = {
-            '.': '>',
-            ',': '<',
-            ';': ':',
-            '/': '?',
-            '\\': '|',
-            '-': '_',
-            '=': '+',
-            '[': '{',
-            ']': '}',
+            ".": ">",
+            ",": "<",
+            ";": ":",
+            "/": "?",
+            "\\": "|",
+            "-": "_",
+            "=": "+",
+            "[": "{",
+            "]": "}",
             "'": '"',
-            '`': '~'
+            "`": "~",
         }
         if shift_map.get(key) is not None:
             # Apply shift key modifications if needed
-            char = shift_map.get(key) if keyboard.is_pressed('shift') else key
+            char = shift_map.get(key) if keyboard.is_pressed("shift") else key
             self.lines[-1] += char
             self.update_display()
             return
@@ -419,7 +477,9 @@ class Typewriter:
         for i in range(visible_lines):
             line_index = start_line + i
             y_position = self.height - (visible_lines - i) * self.line_height
-            self.draw.text((10, y_position), self.lines[line_index], font=self.font, fill=0)
+            self.draw.text(
+                (10, y_position), self.lines[line_index], font=self.font, fill=0
+            )
 
         # Display the updated image
         self.display.display(self.image)
@@ -443,13 +503,41 @@ class Typewriter:
             except KeyboardInterrupt:
                 self.stop()
 
-    def stop(self):
-        """Stop the typewriter application"""
-        # Auto-save when stopping
+    def power_off(self):
+        """Save content, close application, and power off the machine"""
+        logging.info("Power off requested (Ctrl+P)")
+
+        # Save content before powering off
         self.save_content()
+
+        # Show a brief power off message
+        self.show_power_off_screen()
+
+        # Stop the application
         self.running = False
         keyboard.unhook_all()
         self.display.close()
+
+        if self.simulation:
+            logging.info("Exiting simulation mode")
+            os._exit(0)
+
+        try:
+            import subprocess
+            import sys
+
+            subprocess.run(["poweroff"], check=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to power off: {e}")
+            logging.info(
+                "Note: You may need to run this script with appropriate privileges for power off"
+            )
+            # Just quit the application if power off fails
+            sys.exit(1)
+        except Exception as e:
+            logging.error(f"Unexpected error during power off: {e}")
+            sys.exit(1)
+
 
 # Main function - choose the display based on environment or command line argument
 def main(use_simulator=True):
@@ -458,17 +546,15 @@ def main(use_simulator=True):
         display = TkinterDisplay(800, 480)
     else:
         logging.info("Using E-Ink display")
-        try:
-            display = EInkDisplay()
-        except ImportError:
-            logging.warning("E-Ink display module not found, falling back to simulator")
-            display = TkinterDisplay(800, 480)
+        display = EInkDisplay()
 
-    typewriter = Typewriter(display)
+    typewriter = Typewriter(display, use_simulator)
     typewriter.run()
+
 
 if __name__ == "__main__":
     import sys
+
     # Use simulator by default, unless "eink" is passed as an argument
     use_simulator = True
     if len(sys.argv) > 1 and sys.argv[1].lower() == "eink":
