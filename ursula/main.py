@@ -3,6 +3,9 @@ import keyboard
 import os
 import logging
 import time
+import subprocess
+import sys
+
 from abc import abstractmethod
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
@@ -38,6 +41,11 @@ class DisplayInterface:
         pass
 
     @abstractmethod
+    def get_sleeping(self) -> bool:
+        """Check if the display is asleep"""
+        pass
+
+    @abstractmethod
     def close(self):
         """Clean up resources"""
         pass
@@ -53,6 +61,7 @@ class EInkDisplay(DisplayInterface):
             self.width = self.epd.width
             self.height = self.epd.height
             self.partial_refresh_counter = 0
+            self.sleeping = True  # Should be init() first
         except ImportError:
             logging.error("E-Ink display module not found.")
             raise
@@ -60,12 +69,18 @@ class EInkDisplay(DisplayInterface):
     def init(self):
         logging.debug("Initializing E-Ink display")
         self.epd.init_part()
+        self.sleeping = False
 
     def clear(self):
         logging.debug("Clearing E-Ink display")
+
+        assert not self.sleeping, "Display is asleep. Cannot clear image."
+
         self.epd.Clear()
 
     def display(self, image):
+        assert not self.sleeping, "Display is asleep. Cannot display image."
+
         logging.debug("Displaying image on E-Ink display")
         buffer = self.epd.getbuffer(image)
         if self.partial_refresh_counter > 30:
@@ -84,6 +99,11 @@ class EInkDisplay(DisplayInterface):
     def sleep(self):
         logging.debug("Putting E-Ink display to sleep")
         self.epd.sleep()
+        self.sleeping = True
+
+    def get_sleeping(self):
+        """Check if the display is asleep"""
+        return self.sleeping
 
     def close(self):
         self.sleep()
@@ -163,6 +183,10 @@ class TkinterDisplay(DisplayInterface):
         logging.debug("Tkinter simulator doesn't require sleep mode")
         pass
 
+    def get_sleeping(self):
+        """Check if the display is asleep"""
+        return False
+
     def close(self):
         logging.debug("Closing Tkinter simulator")
         if self.root:
@@ -192,6 +216,7 @@ class Typewriter:
         self.line_height = self.font_size + 8
 
         self.simulation = simulation
+        self.last_action_time = time.time()
 
         # Default save file name
         self.save_file = "typewriter_content.txt"
@@ -354,10 +379,25 @@ class Typewriter:
         """Set up global keyboard event listener"""
         keyboard.on_press(self.handle_keypress)
 
+    def sleep_after_inactivity(self):
+        """Put the display to sleep after a period of inactivity"""
+        # Put the display to sleep if it has been inactive for a minute
+        if time.time() - self.last_action_time > 60:
+            logging.info("Putting display to sleep due to inactivity")
+            self.display.sleep()
+            return
+
     def handle_keypress(self, event):
         """Process keyboard events from the keyboard module"""
         if not self.running:
             return
+
+        if self.display.get_sleeping():
+            # If the display is asleep, wake it up
+            self.display.init()
+
+        # Update the last action time
+        self.last_action_time = time.time()
 
         # Get the key name
         key = event.name
@@ -494,14 +534,14 @@ class Typewriter:
             try:
                 self.display.mainloop()
             except KeyboardInterrupt:
-                self.stop()
+                self.power_off()
         else:
             # For EInkDisplay, we need to keep the script running
             try:
                 while self.running:
                     time.sleep(0.1)
             except KeyboardInterrupt:
-                self.stop()
+                self.power_off()
 
     def power_off(self):
         """Save content, close application, and power off the machine"""
@@ -509,9 +549,6 @@ class Typewriter:
 
         # Save content before powering off
         self.save_content()
-
-        # Show a brief power off message
-        self.show_power_off_screen()
 
         # Stop the application
         self.running = False
@@ -523,9 +560,6 @@ class Typewriter:
             os._exit(0)
 
         try:
-            import subprocess
-            import sys
-
             subprocess.run(["poweroff"], check=True)
         except subprocess.CalledProcessError as e:
             logging.error(f"Failed to power off: {e}")
