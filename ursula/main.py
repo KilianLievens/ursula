@@ -6,9 +6,12 @@ import time
 import subprocess
 import sys
 
+from ursula.keymapping import map_keys
+
 from abc import abstractmethod
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
+# TODO KILIAN: split file
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -106,12 +109,13 @@ class EInkDisplay(DisplayInterface):
         return self.sleeping
 
     def close(self):
+        self.clear()
         self.sleep()
 
 
 # Tkinter Simulator Implementation
 class TkinterDisplay(DisplayInterface):
-    def __init__(self, width=800, height=480, scale_factor=3):
+    def __init__(self, width=800, height=480, scale_factor=2):
         self.logical_width = width
         self.logical_height = height
         self.scale_factor = scale_factor
@@ -173,6 +177,8 @@ class TkinterDisplay(DisplayInterface):
             image=self.tk_image,
         )
 
+        # Simulate a delay for the display update
+        time.sleep(0.5)
         # Update the display
         self.root.update()
 
@@ -193,11 +199,6 @@ class TkinterDisplay(DisplayInterface):
             self.root.quit()
             self.root.destroy()
             self.root = None
-
-    def update(self):
-        """Process Tkinter events"""
-        if self.root:
-            self.root.update()
 
     # TODO KILIAN: a run in the interface?
     def mainloop(self):
@@ -373,7 +374,7 @@ class Typewriter:
         self.display.display(splash_image)
 
         # Wait for a moment before continuing
-        time.sleep(3)
+        time.sleep(4)
 
     def setup_keyboard_listener(self):
         """Set up global keyboard event listener"""
@@ -400,7 +401,7 @@ class Typewriter:
         self.last_action_time = time.time()
 
         # Get the key name
-        key = event.name
+        key = map_keys(event.name)
 
         # Handle Ctrl+S for saving
         if key == "s" and keyboard.is_pressed("ctrl"):
@@ -529,19 +530,13 @@ class Typewriter:
         self.setup_keyboard_listener()
         self.update_display()
 
+        # TODO KILIAN
         # For TkinterDisplay, we need to keep the mainloop running
         if isinstance(self.display, TkinterDisplay):
-            try:
-                self.display.mainloop()
-            except KeyboardInterrupt:
-                self.power_off()
+            self.display.mainloop()
         else:
-            # For EInkDisplay, we need to keep the script running
-            try:
-                while self.running:
-                    time.sleep(0.1)
-            except KeyboardInterrupt:
-                self.power_off()
+            while self.running:
+                time.sleep(0.1)
 
     def power_off(self):
         """Save content, close application, and power off the machine"""

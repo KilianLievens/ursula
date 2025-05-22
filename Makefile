@@ -43,7 +43,7 @@ rsync:
 
 .PHONY: run
 run: rsync
-	ssh kilian@ursula.local -t "cd /home/kilian/ursula && source .venv/bin/activate && PYTHONPATH='/home/kilian/ursula' python ./ursula/test.py"
+	ssh kilian@ursula.local -t "cd /home/kilian/ursula && sudo PYTHONPATH='/home/kilian/ursula' .venv/bin/python ./ursula/main.py eink"
 
 .PHONY: r-venv
 r-venv:
@@ -51,7 +51,7 @@ r-venv:
 
 .PHONY: r-install
 r-install: r-venv requirements.txt rsync
-	ssh kilian@ursula.local -t "cd /home/kilian/ursula && source .venv/bin/activate && pip install -r requirements.txt"
+	ssh kilian@ursula.local -t "cd /home/kilian/ursula && .venv/bin/pip install -r requirements.txt"
 	rm requirements.txt
 
 .PHONY: r-clear
