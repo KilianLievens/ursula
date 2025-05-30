@@ -6,10 +6,12 @@ import time
 import subprocess
 import sys
 
-from ursula.keymapping import map_keys
-
 from abc import abstractmethod
 from PIL import Image, ImageDraw, ImageFont, ImageTk
+from ursula.keymapping.azerty import Azerty
+from ursula.keymapping.keymap import Keymap
+from ursula.keymapping.factory import KeymapFactory
+from ursula.lib.epd import EPD
 
 # TODO KILIAN: split file
 # Set up logging
@@ -58,7 +60,6 @@ class DisplayInterface:
 class EInkDisplay(DisplayInterface):
     def __init__(self):
         try:
-            from ursula.lib.epd import EPD
 
             self.epd = EPD()
             self.width = self.epd.width
@@ -71,6 +72,8 @@ class EInkDisplay(DisplayInterface):
 
     def init(self):
         logging.debug("Initializing E-Ink display")
+        self.epd.init()
+        self.epd.Clear()
         self.epd.init_part()
         self.sleeping = False
 
@@ -100,7 +103,8 @@ class EInkDisplay(DisplayInterface):
         return (self.width, self.height)
 
     def sleep(self):
-        logging.debug("Putting E-Ink display to sleep")
+        if self.sleeping:
+            return
         self.epd.sleep()
         self.sleeping = True
 
@@ -109,7 +113,12 @@ class EInkDisplay(DisplayInterface):
         return self.sleeping
 
     def close(self):
-        self.clear()
+        if self.sleeping:
+            logging.debug("Display is already asleep. No need to close.")
+            return
+
+        self.epd.init()
+        self.epd.Clear()
         self.sleep()
 
 
@@ -209,7 +218,7 @@ class TkinterDisplay(DisplayInterface):
 
 # Typewriter Application
 class Typewriter:
-    def __init__(self, display, simulation=True):
+    def __init__(self, display, simulation: bool, keymap: Keymap):
         self.display = display
         self.width, self.height = display.get_dimensions()
         self.lines = [""]
@@ -218,9 +227,15 @@ class Typewriter:
 
         self.simulation = simulation
         self.last_action_time = time.time()
+        self.keymap = keymap
 
         # Default save file name
         self.save_file = "typewriter_content.txt"
+
+        # Batched display update settings
+        self.display_update_delay = 0.05
+        self.chars_since_update = 0
+        self.last_keypress_time = 0
 
         # Load font
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -233,7 +248,7 @@ class Typewriter:
             self.splash_font = ImageFont.truetype(
                 os.path.join(dir_path, "lib", "font.ttc"), 96
             )
-            # Alternatively, you could try to use a different font file if available:
+            # Alternatively, you could try to use a different font file if not available:
             # self.splash_font = ImageFont.truetype("arial.ttf", 96)
         except IOError:
             logging.warning(
@@ -250,7 +265,6 @@ class Typewriter:
 
         # Initialize the display
         self.display.init()
-        self.display.clear()
 
         # Load existing content before showing splash screen
         self.load_content()
@@ -375,6 +389,7 @@ class Typewriter:
 
         # Wait for a moment before continuing
         time.sleep(4)
+        self.display.clear()
 
     def setup_keyboard_listener(self):
         """Set up global keyboard event listener"""
@@ -383,10 +398,32 @@ class Typewriter:
     def sleep_after_inactivity(self):
         """Put the display to sleep after a period of inactivity"""
         # Put the display to sleep if it has been inactive for a minute
-        if time.time() - self.last_action_time > 60:
+        if not self.display.get_sleeping() and time.time() - self.last_action_time > 60:
             logging.info("Putting display to sleep due to inactivity")
             self.display.sleep()
             return
+
+    def should_update_display(self):
+        """Check if display should be updated based on time"""
+        current_time = time.time()
+        time_since_last_key = current_time - self.last_keypress_time
+
+        # Move chars since update?
+        return (
+            self.chars_since_update > 0
+            and time_since_last_key >= self.display_update_delay
+        )
+
+    def trigger_display_update(self, force_immediate=False):
+        """Trigger a display update either immediately or check if batched update needed"""
+        current_time = time.time()
+        self.last_keypress_time = current_time
+
+        if force_immediate:
+            self.chars_since_update = 0
+            self.update_display()
+        else:
+            self.chars_since_update += 1
 
     def handle_keypress(self, event):
         """Process keyboard events from the keyboard module"""
@@ -401,7 +438,7 @@ class Typewriter:
         self.last_action_time = time.time()
 
         # Get the key name
-        key = map_keys(event.name)
+        key = self.keymap.map(event.name, keyboard.is_pressed("shift"))
 
         # Handle Ctrl+S for saving
         if key == "s" and keyboard.is_pressed("ctrl"):
@@ -413,11 +450,23 @@ class Typewriter:
             self.power_off()
             return
 
+        # Handle Ctrl+W for deleting a full word
+        if key == "w" and keyboard.is_pressed("ctrl"):
+            # Remove the last word from the current line
+            if len(self.lines[-1]) > 0:
+                parts = self.lines[-1].rsplit(" ", 1)
+                if len(parts) > 1:
+                    self.lines[-1] = parts[0]
+                else:
+                    self.lines[-1] = ""
+            self.trigger_display_update()
+            return
+
         # Process different keys
         if key == "enter":
             # Move to a new line when Enter/Return is pressed
             self.lines.append("")
-            self.update_display()
+            self.trigger_display_update(force_immediate=True)
             return
 
         if key == "backspace":
@@ -428,19 +477,19 @@ class Typewriter:
             # Remove a letter
             if len(self.lines[-1]) > 0:
                 self.lines[-1] = self.lines[-1][:-1]
-                self.update_display()
+                self.trigger_display_update()
                 return
 
             # Go to previous line if at start of current line
             self.lines.pop()
-            self.update_display()
+            self.trigger_display_update(force_immediate=True)
             return
 
         # TODO KILIAN: technically you could add endless space at the end of a line without noticing.
         if key == "space":
             # Add space
             self.lines[-1] += " "
-            self.update_display()
+            self.trigger_display_update()
             return
 
         if len(key) > 1:
@@ -462,38 +511,8 @@ class Typewriter:
             else:
                 self.lines.append("")
 
-        if key.isalnum():
-            # Check for shift key to handle uppercase
-            if keyboard.is_pressed("shift"):
-                key = key.upper()
-
-            self.lines[-1] += key
-            self.update_display()
-            return
-
-        # TODO KILIAN: move
-        shift_map = {
-            ".": ">",
-            ",": "<",
-            ";": ":",
-            "/": "?",
-            "\\": "|",
-            "-": "_",
-            "=": "+",
-            "[": "{",
-            "]": "}",
-            "'": '"',
-            "`": "~",
-        }
-        if shift_map.get(key) is not None:
-            # Apply shift key modifications if needed
-            char = shift_map.get(key) if keyboard.is_pressed("shift") else key
-            self.lines[-1] += char
-            self.update_display()
-            return
-
         self.lines[-1] += key
-        self.update_display()
+        self.trigger_display_update()
 
     def get_text_width(self, text):
         """Get the width of text in pixels"""
@@ -505,25 +524,36 @@ class Typewriter:
         self.image = Image.new("1", (self.width, self.height), 255)
         self.draw = ImageDraw.Draw(self.image)
 
+        # TODO
+        # Local copy to avoid concurrency issues with the hook
+        lines_snapshot = list(self.lines)
+
         # Calculate how many lines can fit on screen
-        visible_lines = min(len(self.lines), self.height // self.line_height)
+        visible_lines = min(len(lines_snapshot), self.height // self.line_height)
 
         # Calculate which lines to display
-        if len(self.lines) <= visible_lines:
+        if len(lines_snapshot) <= visible_lines:
             start_line = 0
         else:
-            start_line = len(self.lines) - visible_lines
+            start_line = len(lines_snapshot) - visible_lines
 
         # Draw visible lines
         for i in range(visible_lines):
             line_index = start_line + i
             y_position = self.height - (visible_lines - i) * self.line_height
-            self.draw.text(
-                (10, y_position), self.lines[line_index], font=self.font, fill=0
-            )
+            text = lines_snapshot[line_index]
+            if i == visible_lines - 1:
+                text = text + "_"  # Add cursor to the last line
+            self.draw.text((10, y_position), text, font=self.font, fill=0)
 
         # Display the updated image
         self.display.display(self.image)
+
+    def check_pending_updates(self):
+        """Check and execute any pending display updates"""
+        if self.should_update_display():
+            self.chars_since_update = 0
+            self.update_display()
 
     def run(self):
         """Run the typewriter application"""
@@ -533,10 +563,20 @@ class Typewriter:
         # TODO KILIAN
         # For TkinterDisplay, we need to keep the mainloop running
         if isinstance(self.display, TkinterDisplay):
+            # For Tkinter, we need to periodically check for pending updates
+            def check_updates():
+                if self.running:
+                    self.check_pending_updates()
+                    self.display.root.after(100, check_updates)  # Check every 100ms
+
+            check_updates()  # Start the update checking
             self.display.mainloop()
         else:
             while self.running:
-                time.sleep(0.1)
+                # Check if we need to update display for pending characters
+                self.check_pending_updates()
+                self.sleep_after_inactivity()
+                time.sleep(0.01)
 
     def power_off(self):
         """Save content, close application, and power off the machine"""
@@ -546,30 +586,19 @@ class Typewriter:
         self.save_content()
 
         # Stop the application
-        self.running = False
-        keyboard.unhook_all()
         self.display.close()
+
+        time.sleep(4)
 
         if self.simulation:
             logging.info("Exiting simulation mode")
             os._exit(0)
+            return
 
-        try:
-            subprocess.run(["poweroff"], check=True)
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Failed to power off: {e}")
-            logging.info(
-                "Note: You may need to run this script with appropriate privileges for power off"
-            )
-            # Just quit the application if power off fails
-            sys.exit(1)
-        except Exception as e:
-            logging.error(f"Unexpected error during power off: {e}")
-            sys.exit(1)
+        os.system("sudo shutdown -h now")
 
 
-# Main function - choose the display based on environment or command line argument
-def main(use_simulator=True):
+def main(use_simulator: bool, keymap: Keymap):
     if use_simulator:
         logging.info("Using Tkinter simulator")
         display = TkinterDisplay(800, 480)
@@ -577,16 +606,20 @@ def main(use_simulator=True):
         logging.info("Using E-Ink display")
         display = EInkDisplay()
 
-    typewriter = Typewriter(display, use_simulator)
+    typewriter = Typewriter(display, use_simulator, keymap)
     typewriter.run()
 
 
 if __name__ == "__main__":
     import sys
 
-    # Use simulator by default, unless "eink" is passed as an argument
     use_simulator = True
     if len(sys.argv) > 1 and sys.argv[1].lower() == "eink":
         use_simulator = False
 
-    main(use_simulator)
+    keymap = Azerty()
+    if len(sys.argv) > 2:
+        raw_keymap = sys.argv[2].lower()
+        keymap = KeymapFactory.create(raw_keymap)
+
+    main(use_simulator, keymap)

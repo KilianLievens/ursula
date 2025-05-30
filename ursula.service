@@ -1,6 +1,10 @@
 [Unit]
 Description=Ursula Eink Service
-After=network.target
+After=network.target graphical-session.target
+Wants=graphical-session.target
+# Wait for input devices to be ready
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
 
 [Service]
 Type=simple

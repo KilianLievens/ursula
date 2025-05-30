@@ -45,6 +45,10 @@ rsync:
 run: rsync
 	ssh kilian@ursula.local -t "cd /home/kilian/ursula && sudo PYTHONPATH='/home/kilian/ursula' .venv/bin/python ./ursula/main.py eink"
 
+.PHONY: run-colemak
+run-colemak: rsync
+	ssh kilian@ursula.local -t "cd /home/kilian/ursula && sudo PYTHONPATH='/home/kilian/ursula' .venv/bin/python ./ursula/main.py eink colemak"
+
 .PHONY: r-venv
 r-venv:
 	ssh kilian@ursula.local -t "cd /home/kilian/ursula && [ -d .venv ] || python -m venv .venv"
