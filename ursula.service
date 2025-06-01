@@ -1,10 +1,7 @@
 [Unit]
 Description=Ursula Eink Service
-After=network.target graphical-session.target
-Wants=graphical-session.target
-# Wait for input devices to be ready
-After=systemd-udev-settle.service
-Wants=systemd-udev-settle.service
+After=dev-input-by_bt_kbd.device
+BindsTo=dev-input-by_bt_kbd.device
 
 [Service]
 Type=simple
@@ -12,10 +9,8 @@ User=root
 WorkingDirectory=/home/kilian/ursula
 Environment="PYTHONPATH=/home/kilian/ursula"
 ExecStart=/home/kilian/ursula/.venv/bin/python /home/kilian/ursula/ursula/main.py eink
-
-# Restart the service if it fails
 Restart=on-failure
-RestartSec=5
+RestartSec=1
 
 [Install]
 WantedBy=multi-user.target

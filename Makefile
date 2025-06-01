@@ -61,3 +61,10 @@ r-install: r-venv requirements.txt rsync
 .PHONY: r-clear
 r-clear:
 	ssh kilian@ursula.local -t "rm -rf ursula && mkdir ursula"
+
+.PHONY: r-setup
+r-setup: rsync
+	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/90-btkbd.rules /etc/udev/rules.d/90-btkbd.rules"
+	ssh kilian@ursula.local -t "sudo systemctl enable /home/kilian/ursula/ursula.service"
+	ssh kilian@ursula.local -t "sudo systemctl daemon-reload"
+	ssh kilian@ursula.local -t "sudo udevadm control --reload"
