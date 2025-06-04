@@ -11,6 +11,10 @@ class Azerty(Keymap):
             "m": ",",
             ";": "m",
         }
+        azerty_letter_shift_mappings = {
+            "m": "?",
+            ";": "M",
+        }
 
         azerty_number_mappings = {
             "1": "&",
@@ -23,7 +27,7 @@ class Azerty(Keymap):
             "8": "_",
             "9": "ç",
             "0": "à",
-            "-": ")",
+            "−": ")",
             "=": "=",
         }
 
@@ -38,13 +42,13 @@ class Azerty(Keymap):
             "8": "8",
             "9": "9",
             "0": "0",
-            "-": "°",
+            "−": "°",
             "=": "+",
         }
 
         azerty_punctuation_mappings = {
-            ",": "?",
-            ".": ";",
+            ",": ";",
+            ".": ":",
             "/": "!",
             "'": "ù",
             "[": "^",
@@ -55,7 +59,7 @@ class Azerty(Keymap):
 
         azerty_punctuation_shift_mappings = {
             ",": ".",
-            ".": ":",
+            ".": "/",
             "/": "§",
             "'": "%",
             "[": "¨",
@@ -66,7 +70,13 @@ class Azerty(Keymap):
 
         if key in azerty_letter_mappings or key.isalpha():
             mapped_key = azerty_letter_mappings.get(key, key)
-            return mapped_key.upper() if is_shift_pressed else mapped_key
+
+            if is_shift_pressed:
+                if key in azerty_letter_shift_mappings:
+                    return azerty_letter_shift_mappings[key]
+                return mapped_key.upper()
+
+            return mapped_key
 
         if key in azerty_number_mappings:
             if is_shift_pressed:

@@ -1,0 +1,8 @@
+[Unit]
+Description=Ensure BT keyboard is connected
+After=bluetooth.target
+Requires=bluetooth.service
+
+[Service]
+Type=oneshot
+ExecStart=bash /home/kilian/ursula/bt-reconnect.sh

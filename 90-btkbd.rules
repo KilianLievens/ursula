@@ -1,1 +1,3 @@
-SUBSYSTEM=="input", ATTRS{uniq}=="29:27:3c:65:60:d3", SYMLINK+="input/by_bt_kbd", TAG+="systemd"
+SUBSYSTEM=="input", ATTRS{uniq}=="29:27:3c:65:60:d3", \
+  SYMLINK+="input/by_bt_kbd", \
+  TAG+="systemd", ENV{SYSTEMD_WANTS}="ursula.service"

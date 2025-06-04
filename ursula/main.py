@@ -3,7 +3,6 @@ import keyboard
 import os
 import logging
 import time
-import subprocess
 import sys
 
 from abc import abstractmethod
@@ -576,7 +575,7 @@ class Typewriter:
                 # Check if we need to update display for pending characters
                 self.check_pending_updates()
                 self.sleep_after_inactivity()
-                time.sleep(0.01)
+                time.sleep(0.05)
 
     def power_off(self):
         """Save content, close application, and power off the machine"""
