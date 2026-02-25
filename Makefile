@@ -63,7 +63,7 @@ r-clear:
 	ssh kilian@ursula.local -t "rm -rf ursula && mkdir ursula"
 
 .PHONY: r-setup
-r-setup: rsync
+r-setup: rsync r-gpio-shutdown
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/90-btkbd.rules /etc/udev/rules.d/90-btkbd.rules"
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/ursula.service /etc/systemd/system/ursula.service"
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/bt-reconnect.service /etc/systemd/system/bt-reconnect.service"
@@ -72,3 +72,7 @@ r-setup: rsync
 	ssh kilian@ursula.local -t "sudo systemctl daemon-reload"
 	ssh kilian@ursula.local -t "sudo systemctl enable bt-reconnect.timer"
 	ssh kilian@ursula.local -t "sudo systemctl start bt-reconnect.timer"
+
+.PHONY: r-gpio-shutdown
+r-gpio-shutdown:
+	ssh kilian@ursula.local -t "sudo sh -c \"if grep -qxF 'dtoverlay=gpio-shutdown,gpio_pin=4' /boot/firmware/config.txt; then exit 0; fi; if grep -qxF 'dtoverlay=gpio-shutdown' /boot/firmware/config.txt; then sed -i \"s/^dtoverlay=gpio-shutdown$$/dtoverlay=gpio-shutdown,gpio_pin=4/\" /boot/firmware/config.txt; else { echo '# Power button: GPIO pin 4 triggers clean shutdown'; echo 'dtoverlay=gpio-shutdown,gpio_pin=4'; } >> /boot/firmware/config.txt; fi\""
