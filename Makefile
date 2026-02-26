@@ -67,11 +67,11 @@ r-setup: rsync r-gpio-shutdown
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/90-btkbd.rules /etc/udev/rules.d/90-btkbd.rules"
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/ursula.service /etc/systemd/system/ursula.service"
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/bt-reconnect.service /etc/systemd/system/bt-reconnect.service"
-	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/bt-reconnect.timer /etc/systemd/system/bt-reconnect.timer"
+	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/bt-reconnect-button.service /etc/systemd/system/bt-reconnect-button.service"
 	ssh kilian@ursula.local -t "sudo udevadm control --reload-rules"
 	ssh kilian@ursula.local -t "sudo systemctl daemon-reload"
-	ssh kilian@ursula.local -t "sudo systemctl enable bt-reconnect.timer"
-	ssh kilian@ursula.local -t "sudo systemctl start bt-reconnect.timer"
+	ssh kilian@ursula.local -t "sudo systemctl enable bt-reconnect-button.service"
+	ssh kilian@ursula.local -t "sudo systemctl restart bt-reconnect-button.service"
 
 .PHONY: r-gpio-shutdown
 r-gpio-shutdown:

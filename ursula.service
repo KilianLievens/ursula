@@ -8,7 +8,9 @@ Type=simple
 User=root
 WorkingDirectory=/home/kilian/ursula
 Environment="PYTHONPATH=/home/kilian/ursula"
+ExecStartPre=/home/kilian/ursula/bt-kbd-led.sh on
 ExecStart=/home/kilian/ursula/.venv/bin/python /home/kilian/ursula/ursula/main.py eink
+ExecStopPost=/home/kilian/ursula/bt-kbd-led.sh off
 Restart=on-failure
 RestartSec=1
 

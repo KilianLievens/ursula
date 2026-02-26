@@ -1,0 +1,13 @@
+[Unit]
+Description=Run BT reconnect when GPIO 26 button is pressed
+After=bluetooth.target
+Requires=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/home/kilian/ursula/.venv/bin/python /home/kilian/ursula/ursula/bt_reconnect_button.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

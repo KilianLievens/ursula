@@ -1,3 +1,4 @@
-SUBSYSTEM=="input", ATTRS{uniq}=="29:27:3c:65:60:d3", \
+SUBSYSTEM=="input", ACTION=="add", ATTRS{uniq}=="29:27:3c:65:60:d3", \
   SYMLINK+="input/by_bt_kbd", \
-  TAG+="systemd", ENV{SYSTEMD_WANTS}="ursula.service"
+  TAG+="systemd", ENV{SYSTEMD_WANTS}="ursula.service", \
+  RUN+="/bin/systemctl --no-block try-restart ursula.service"
