@@ -68,10 +68,16 @@ r-setup: rsync r-gpio-shutdown
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/ursula.service /etc/systemd/system/ursula.service"
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/bt-reconnect.service /etc/systemd/system/bt-reconnect.service"
 	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/bt-reconnect-button.service /etc/systemd/system/bt-reconnect-button.service"
+	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/rpi-power-indicator.service /etc/systemd/system/rpi-power-indicator.service"
+	ssh kilian@ursula.local -t "sudo ln -sf /home/kilian/ursula/rpi-shutdown-indicator.service /etc/systemd/system/rpi-shutdown-indicator.service"
 	ssh kilian@ursula.local -t "sudo udevadm control --reload-rules"
 	ssh kilian@ursula.local -t "sudo systemctl daemon-reload"
 	ssh kilian@ursula.local -t "sudo systemctl enable bt-reconnect-button.service"
 	ssh kilian@ursula.local -t "sudo systemctl restart bt-reconnect-button.service"
+	ssh kilian@ursula.local -t "sudo systemctl enable rpi-power-indicator.service"
+	ssh kilian@ursula.local -t "sudo systemctl restart rpi-power-indicator.service"
+	ssh kilian@ursula.local -t "sudo systemctl enable rpi-shutdown-indicator.service"
+	ssh kilian@ursula.local -t "sudo systemctl restart rpi-shutdown-indicator.service"
 
 .PHONY: r-gpio-shutdown
 r-gpio-shutdown:

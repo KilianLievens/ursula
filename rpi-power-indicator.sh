@@ -1,16 +1,17 @@
 #!/usr/bin/env sh
 
-# Toggle Bluetooth keyboard status LED on GPIO 6.
-# Usage: bt-kbd-led.sh on|off
+# Toggle Raspberry Pi "system is on" indicator on GPIO 5.
+# Usage: rpi-power-indicator.sh on|off
 
+PIN=5
 STATE="${1:-}"
 
 case "$STATE" in
   on)
-    LEVEL_HIGH=1
+    LEVEL=1
     ;;
   off)
-    LEVEL_HIGH=0
+    LEVEL=0
     ;;
   *)
     exit 0
@@ -18,19 +19,19 @@ case "$STATE" in
 esac
 
 set_with_pinctrl() {
-  pinctrl set 6 op
-  if [ "$LEVEL_HIGH" -eq 1 ]; then
-    pinctrl set 6 dh
+  pinctrl set "$PIN" op
+  if [ "$LEVEL" -eq 1 ]; then
+    pinctrl set "$PIN" dh
   else
-    pinctrl set 6 dl
+    pinctrl set "$PIN" dl
   fi
 }
 
 set_with_raspi_gpio() {
-  if [ "$LEVEL_HIGH" -eq 1 ]; then
-    raspi-gpio set 6 op dh
+  if [ "$LEVEL" -eq 1 ]; then
+    raspi-gpio set "$PIN" op dh
   else
-    raspi-gpio set 6 op dl
+    raspi-gpio set "$PIN" op dl
   fi
 }
 

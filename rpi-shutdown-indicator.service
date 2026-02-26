@@ -1,0 +1,14 @@
+[Unit]
+Description=Raspberry Pi shutdown indicator on GPIO 12
+After=local-fs.target
+Before=shutdown.target reboot.target halt.target
+Conflicts=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/kilian/ursula/rpi-shutdown-indicator.sh off
+ExecStop=/home/kilian/ursula/rpi-shutdown-indicator.sh on
+
+[Install]
+WantedBy=multi-user.target

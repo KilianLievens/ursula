@@ -1,0 +1,14 @@
+[Unit]
+Description=Raspberry Pi power-on indicator on GPIO 5
+After=local-fs.target
+Before=shutdown.target reboot.target halt.target
+Conflicts=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/kilian/ursula/rpi-power-indicator.sh on
+ExecStop=/home/kilian/ursula/rpi-power-indicator.sh off
+
+[Install]
+WantedBy=multi-user.target
